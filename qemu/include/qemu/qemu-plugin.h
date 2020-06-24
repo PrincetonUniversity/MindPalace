@@ -327,6 +327,13 @@ bool qemu_plugin_mem_is_store(qemu_plugin_meminfo_t info);
 struct qemu_plugin_hwaddr *qemu_plugin_get_hwaddr(qemu_plugin_meminfo_t info,
                                                   uint64_t vaddr);
 
+/* Added by Kaifeng Xu, only for plugin tracing */
+uint64_t qemu_plugin_insn_paddr(const struct qemu_plugin_insn *insn);
+int qemu_plugin_insn_is_br_jmp(const struct qemu_plugin_insn *insn);
+uint64_t qemu_plugin_insn_target_vaddr(const struct qemu_plugin_insn *insn);
+void qemu_plugin_get_cpuinfo(uint64_t vaddr, uint64_t paddr, int is_br_jmp, uint64_t target_vaddr, uint64_t icount);
+void qemu_plugin_nop(uint8_t *nop_data);
+
 /*
  * The following additional queries can be run on the hwaddr structure
  * to return information about it. For non-IO accesses the device
@@ -409,5 +416,12 @@ int qemu_plugin_n_max_vcpus(void);
  * @string: a string
  */
 void qemu_plugin_outs(const char *string);
+
+
+/* Created by Kaifeng Xu
+ * qemu_log_plugin() - Directly output string via qemu_log
+ * @string: a string
+ */
+void qemu_log_plugin(const char *string);
 
 #endif /* QEMU_PLUGIN_API_H */

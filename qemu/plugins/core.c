@@ -29,6 +29,7 @@
 #include "sysemu/sysemu.h"
 #include "tcg/tcg.h"
 #include "tcg/tcg-op.h"
+#include "trace-root.h"
 #include "trace/mem-internal.h" /* mem_info macros */
 #include "plugin.h"
 

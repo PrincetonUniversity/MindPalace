@@ -43,11 +43,39 @@ int qemu_log(const char *fmt, ...)
     rcu_read_lock();
     logfile = atomic_rcu_read(&qemu_logfile);
     if (logfile) {
-        va_list ap;
-        va_start(ap, fmt);
-        ret = vfprintf(logfile->fd, fmt, ap);
-        va_end(ap);
+        if (logfile->is_compressed) { // START: Georgios
+            unsigned char *out = logfile->out;
+            char *message = logfile->message;
+            // Create message string
+            va_list ap;
+            va_start(ap, fmt);
+            ret = vsprintf(message, fmt, ap);
+            va_end(ap);
 
+            // Compress text
+            if (1) {
+                z_stream *gz_stream = &(logfile->gz_stream);
+                gz_stream->next_in = (unsigned char *) message;
+                gz_stream->avail_in = strlen(message);
+                do {
+                    int have;
+                    gz_stream->avail_out = CHUNK;
+                    gz_stream->next_out = out;
+                    CALL_ZLIB (deflate (gz_stream, Z_NO_FLUSH));
+                    have = CHUNK - gz_stream->avail_out;
+                    fwrite (out, sizeof (char), have, logfile->fd);
+                } while (gz_stream->avail_out == 0);
+            } else {
+                // The following line writes on the file without any compression attempt
+                fwrite(message, sizeof (char), strlen(message), logfile->fd);
+            }
+            //
+        } else { // END: Georgios
+            va_list ap;
+            va_start(ap, fmt);
+            ret = vfprintf(logfile->fd, fmt, ap);
+            va_end(ap);
+        }
         /* Don't pass back error results.  */
         if (ret < 0) {
             ret = 0;
@@ -78,7 +106,7 @@ static bool log_uses_own_buffers;
 void qemu_set_log(int log_flags)
 {
     bool need_to_open_file = false;
-    QemuLogFile *logfile;
+    QemuLogFile *logfile = NULL;
 
     qemu_loglevel = log_flags;
 #ifdef CONFIG_TRACE_LOG
@@ -135,6 +163,30 @@ void qemu_set_log(int log_flags)
 #endif
             log_append = 1;
         }
+
+        // START: Georgios
+        /* If the specified log file ends in '.gz' then enable and initialize
+         *  compressed logging output.
+         */
+        assert(logfile != NULL);
+        if (logfilename) {
+            int logfilename_len = strlen(logfilename);
+            char *logfilename_suffix = logfilename + logfilename_len - 3;
+            if (memcmp(logfilename_suffix, ".gz" , 3) == 0) {
+                z_stream *gz_stream = &(logfile->gz_stream);
+                gz_stream->zalloc = Z_NULL;
+                gz_stream->zfree = Z_NULL;
+                gz_stream->opaque = Z_NULL;
+                CALL_ZLIB (deflateInit2 (gz_stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
+                                         windowBits | GZIP_ENCODING, 8,
+                                         Z_DEFAULT_STRATEGY));
+                logfile->is_compressed = 1;
+            } else {
+                logfile->is_compressed = 0;
+            }
+        }
+        // END: Georgios
+
         atomic_rcu_set(&qemu_logfile, logfile);
     }
 }
@@ -386,4 +438,28 @@ void qemu_print_log_usage(FILE *f)
     fprintf(f, "trace:PATTERN   enable trace events\n");
     fprintf(f, "\nUse \"-d trace:help\" to get a list of trace events.\n\n");
 #endif
+}
+
+void qemu_log_cleanup(void)
+{
+    QemuLogFile *logfile;
+
+    rcu_read_lock();
+    logfile = atomic_rcu_read(&qemu_logfile);
+    if (logfile && logfile->is_compressed) {
+        /* Flush compressed log buffers */
+        z_stream *gz_stream = &(logfile->gz_stream);
+        unsigned char *out = logfile->out;
+        do {
+            int have;
+            gz_stream->avail_out = CHUNK;
+            gz_stream->next_out = out;
+            CALL_ZLIB (deflate (gz_stream, Z_FINISH));
+            have = CHUNK - gz_stream->avail_out;
+            fwrite (out, sizeof (char), have, logfile->fd);
+        } while (gz_stream->avail_out == 0);
+        (void)deflateEnd(&(logfile->gz_stream));
+    }
+
+    rcu_read_unlock();
 }

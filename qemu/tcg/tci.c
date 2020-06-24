@@ -32,6 +32,9 @@
 #include "exec/cpu_ldst.h"
 #include "tcg/tcg-op.h"
 
+// Kaifeng
+#include "hw/pqii.h"
+
 /* Marker for missing code. */
 #define TODO() \
     do { \
@@ -487,6 +490,7 @@ uintptr_t tcg_qemu_tb_exec(CPUArchState *env, uint8_t *tb_ptr)
     tci_assert(tb_ptr);
 
     for (;;) {
+        // g_pqii_data.icount += 1;
         TCGOpcode opc = tb_ptr[0];
 #if defined(CONFIG_DEBUG_TCG) && !defined(NDEBUG)
         uint8_t op_size = tb_ptr[1];

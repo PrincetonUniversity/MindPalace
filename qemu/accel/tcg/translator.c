@@ -112,7 +112,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
          * flow although this only really affects post-load operations.
          */
         if (plugin_enabled) {
-            plugin_gen_insn_end();
+            plugin_gen_insn_end(cpu, db);
         }
 
         /* Stop translation if the output buffer is full,

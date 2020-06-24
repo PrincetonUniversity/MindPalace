@@ -95,10 +95,23 @@ struct qemu_plugin_dyn_cb {
 struct qemu_plugin_insn {
     GByteArray *data;
     uint64_t vaddr;
+    // Added by Kaifeng Xu
+    uint64_t paddr;
     void *haddr;
     GArray *cbs[PLUGIN_N_CB_TYPES][PLUGIN_N_CB_SUBTYPES];
     bool calls_helpers;
     bool mem_helper;
+    // Added by Kaifeng Xu
+    // 0: not branch or jump
+    // 1: branch instruction
+    // 2: direct jump instruction 
+    // 3: indirect jump instruction
+    // 4: direct call
+    // 5: indirect call
+    // 6: ret
+    // 7: others (interrupts, interrupt returns, etc.)
+    int is_br_jmp;
+    uint64_t target_vaddr;
 };
 
 /*
@@ -133,6 +146,9 @@ struct qemu_plugin_tb {
     size_t n;
     uint64_t vaddr;
     uint64_t vaddr2;
+    // Added by Kaifeng Xu
+    uint64_t paddr1;
+    uint64_t paddr2;
     void *haddr1;
     void *haddr2;
     GArray *cbs[PLUGIN_N_CB_SUBTYPES];

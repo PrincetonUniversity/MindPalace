@@ -44,8 +44,9 @@ static GCond trace_empty_cond;
 static bool trace_available;
 static bool trace_writeout_enabled;
 
+// Changed by Kaifeng Xu, from 4096 * 64 -> 4096 * 1024
 enum {
-    TRACE_BUF_LEN = 4096 * 64,
+    TRACE_BUF_LEN = 4096 * 1024,
     TRACE_BUF_FLUSH_THRESHOLD = TRACE_BUF_LEN / 4,
 };
 
@@ -56,6 +57,11 @@ static volatile gint dropped_events;
 static uint32_t trace_pid;
 static FILE *trace_fp;
 static char *trace_file_name;
+// START: Kaifeng
+CompressedTraceBuffer *compressed_trace_buffer=NULL;
+static GMutex trace_buffer_lock;
+// static GCond trace_buffer_cond;
+// END: Kaifeng
 
 #define TRACE_RECORD_TYPE_MAPPING 0
 #define TRACE_RECORD_TYPE_EVENT   1
@@ -179,16 +185,69 @@ static gpointer writeout_thread(gpointer opaque)
             } while (!g_atomic_int_compare_and_exchange(&dropped_events,
                                                         dropped_count, 0));
             dropped.rec.arguments[0] = dropped_count;
-            unused = fwrite(&type, sizeof(type), 1, trace_fp);
-            unused = fwrite(&dropped.rec, dropped.rec.length, 1, trace_fp);
+
+            // START: Kaifeng
+            // Convert binary to compressed binary file
+            if (compressed_trace_buffer->is_compressed) { 
+                unsigned char *out = compressed_trace_buffer->out;
+                unsigned char *message = compressed_trace_buffer->message;
+                // Create message string
+                memcpy(message, &type, sizeof(type));
+                memcpy(message + sizeof(type), &dropped.rec, dropped.rec.length);
+
+                // Compress text
+                z_stream *gz_stream = &(compressed_trace_buffer->gz_stream);
+                gz_stream->next_in = (unsigned char *) message;
+                gz_stream->avail_in = sizeof(type) + dropped.rec.length;
+                do {
+                    int have;
+                    gz_stream->avail_out = CHUNK;
+                    gz_stream->next_out = out;
+                    CALL_ZLIB (deflate (gz_stream, Z_NO_FLUSH));
+                    have = CHUNK - gz_stream->avail_out;
+                    fwrite(out, sizeof (unsigned char), have, trace_fp);
+                } while (gz_stream->avail_out == 0);
+            } else { 
+            // END: Kaifeng
+                unused = fwrite(&type, sizeof(type), 1, trace_fp);
+                unused = fwrite(&dropped.rec, dropped.rec.length, 1, trace_fp);
+            }
         }
 
         while (get_trace_record(idx, &recordptr)) {
-            unused = fwrite(&type, sizeof(type), 1, trace_fp);
-            unused = fwrite(recordptr, recordptr->length, 1, trace_fp);
+            // START: Kaifeng
+            // Convert binary to compressed binary file
+            if (compressed_trace_buffer->is_compressed) { 
+                unsigned char *out = compressed_trace_buffer->out;
+                unsigned char *message = compressed_trace_buffer->message;
+                // Create message string
+                memcpy(message, &type, sizeof(type));
+                memcpy(message + sizeof(type), recordptr, recordptr->length);
+
+                // Compress text
+                z_stream *gz_stream = &(compressed_trace_buffer->gz_stream);
+                gz_stream->next_in = (unsigned char *) message;
+                gz_stream->avail_in = sizeof(type) + recordptr->length;
+                do {
+                    int have;
+                    gz_stream->avail_out = CHUNK;
+                    gz_stream->next_out = out;
+                    CALL_ZLIB (deflate (gz_stream, Z_NO_FLUSH));
+                    have = CHUNK - gz_stream->avail_out;
+                    fwrite(out, sizeof (unsigned char), have, trace_fp);
+                } while (gz_stream->avail_out == 0);
+            } else { 
+            // END: Kaifeng
+                unused = fwrite(&type, sizeof(type), 1, trace_fp);
+                unused = fwrite(recordptr, recordptr->length, 1, trace_fp);
+            }
             writeout_idx += recordptr->length;
             free(recordptr); /* don't use g_free, can deadlock when traced */
             idx = writeout_idx % TRACE_BUF_LEN;
+
+            // Added by Kaifeng Xu
+            // g_cond_signal(&trace_buffer_cond);
+            // End Kaifeng Xu
         }
 
         fflush(trace_fp);
@@ -221,11 +280,23 @@ int trace_record_start(TraceBufferRecord *rec, uint32_t event, size_t datasize)
         smp_rmb();
         new_idx = old_idx + rec_len;
 
-        if (new_idx - writeout_idx > TRACE_BUF_LEN) {
-            /* Trace Buffer Full, Event dropped ! */
-            g_atomic_int_inc(&dropped_events);
-            return -ENOSPC;
+        // Changed by Kaifeng Xu
+        // wait for buffer 
+
+        g_mutex_lock(&trace_buffer_lock);
+        while(new_idx - writeout_idx > TRACE_BUF_LEN){
+            g_mutex_unlock(&trace_buffer_lock);
+            g_mutex_lock(&trace_buffer_lock);
+        //     g_cond_wait(&trace_buffer_cond, &trace_buffer_lock);
         }
+        g_mutex_unlock(&trace_buffer_lock);
+
+        // if (new_idx - writeout_idx > TRACE_BUF_LEN) {
+        //     /* Trace Buffer Full, Event dropped ! */
+        //     g_atomic_int_inc(&dropped_events);
+        //     return -ENOSPC;
+        // }
+        // End: Kaifeng Xu
     } while (!g_atomic_int_compare_and_exchange(&trace_idx, old_idx, new_idx));
 
     idx = old_idx % TRACE_BUF_LEN;
@@ -291,11 +362,38 @@ static int st_write_event_mapping(void)
         uint64_t id = trace_event_get_id(ev);
         const char *name = trace_event_get_name(ev);
         uint32_t len = strlen(name);
-        if (fwrite(&type, sizeof(type), 1, trace_fp) != 1 ||
-            fwrite(&id, sizeof(id), 1, trace_fp) != 1 ||
-            fwrite(&len, sizeof(len), 1, trace_fp) != 1 ||
-            fwrite(name, len, 1, trace_fp) != 1) {
-            return -1;
+        // START: Kaifeng
+        // Convert binary to compressed binary file
+        if (compressed_trace_buffer->is_compressed) { 
+            unsigned char *out = compressed_trace_buffer->out;
+            unsigned char *message = compressed_trace_buffer->message;
+            // Create message string
+            memcpy(message, &type, sizeof(type));
+            memcpy(message + sizeof(type), &id, sizeof(id));
+            memcpy(message + sizeof(type) + sizeof(id), &len, sizeof(len));
+            memcpy(message + sizeof(type) + sizeof(id) + sizeof(len), name, len);
+
+            // Compress text
+            z_stream *gz_stream = &(compressed_trace_buffer->gz_stream);
+            gz_stream->next_in = (unsigned char *) message;
+            gz_stream->avail_in = sizeof(type) + sizeof(id) + sizeof(len) + len;
+            do {
+                int have;
+                gz_stream->avail_out = CHUNK;
+                gz_stream->next_out = out;
+                CALL_ZLIB (deflate (gz_stream, Z_NO_FLUSH));
+                have = CHUNK - gz_stream->avail_out;
+                if(fwrite(out, sizeof (unsigned char), have, trace_fp) < have)
+                    return -1;
+            } while (gz_stream->avail_out == 0);
+        } else { 
+        // END: Kaifeng
+            if (fwrite(&type, sizeof(type), 1, trace_fp) != 1 ||
+                fwrite(&id, sizeof(id), 1, trace_fp) != 1 ||
+                fwrite(&len, sizeof(len), 1, trace_fp) != 1 ||
+                fwrite(name, len, 1, trace_fp) != 1) {
+                return -1;
+            }
         }
     }
 
@@ -329,15 +427,72 @@ bool st_set_trace_file_enabled(bool enable)
         };
 
         trace_fp = fopen(trace_file_name, "wb");
+
+        // START: Kaifeng
+        /* If the specified simple backend file ends in '.gz' then enable and initialize
+         *  compressed backend output.
+         */
+        assert(trace_fp != NULL);
+        if (trace_file_name) {
+            int trace_file_name_len = strlen(trace_file_name);
+            char *trace_file_name_suffix = trace_file_name + trace_file_name_len - 3;
+            if (memcmp(trace_file_name_suffix, ".gz" , 3) == 0) {
+                z_stream *gz_stream = &(compressed_trace_buffer->gz_stream);
+                gz_stream->zalloc = Z_NULL;
+                gz_stream->zfree = Z_NULL;
+                gz_stream->opaque = Z_NULL;
+                CALL_ZLIB (deflateInit2 (gz_stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
+                                         windowBits | GZIP_ENCODING, 8,
+                                         Z_DEFAULT_STRATEGY));
+                compressed_trace_buffer->is_compressed = 1;
+            } else {
+                compressed_trace_buffer->is_compressed = 0;
+            }
+        }
+        // END: Kaifeng
+
         if (!trace_fp) {
             return was_enabled;
         }
 
-        if (fwrite(&header, sizeof header, 1, trace_fp) != 1 ||
-            st_write_event_mapping() < 0) {
-            fclose(trace_fp);
-            trace_fp = NULL;
-            return was_enabled;
+        // START: Kaifeng
+        // Convert binary to compressed binary file
+        if (compressed_trace_buffer->is_compressed) { 
+            unsigned char *out = compressed_trace_buffer->out;
+            unsigned char *message = compressed_trace_buffer->message;
+            // Create message string
+            memcpy(message, &header, sizeof(header));
+
+            // Compress text
+            z_stream *gz_stream = &(compressed_trace_buffer->gz_stream);
+            gz_stream->next_in = (unsigned char *) message;
+            gz_stream->avail_in = sizeof(header);
+            do {
+                int have;
+                gz_stream->avail_out = CHUNK;
+                gz_stream->next_out = out;
+                CALL_ZLIB (deflate (gz_stream, Z_NO_FLUSH));
+                have = CHUNK - gz_stream->avail_out;
+                if(fwrite(out, sizeof (unsigned char), have, trace_fp) < have){
+                    fclose(trace_fp);
+                    trace_fp = NULL;
+                    return was_enabled;
+                }
+            } while (gz_stream->avail_out == 0);
+
+            if (st_write_event_mapping() < 0){
+                fclose(trace_fp);
+                trace_fp = NULL;
+                return was_enabled;
+            }
+        } else { 
+        // END: Kaifeng
+            if (fwrite(&header, sizeof header, 1, trace_fp) != 1 ||
+                st_write_event_mapping() < 0) {
+                fclose(trace_fp);
+                trace_fp = NULL;
+                return was_enabled;
+            }
         }
 
         /* Resume trace writeout */
@@ -370,6 +525,10 @@ void st_set_trace_file(const char *file)
     }
 
     st_set_trace_file_enabled(saved_enable);
+    // START: Kaifeng Xu
+    // Enable trace file by default
+    st_set_trace_file_enabled(true);
+    // END: Kaifeng Xu
 }
 
 void st_print_trace_file_status(void)
@@ -381,6 +540,7 @@ void st_print_trace_file_status(void)
 void st_flush_trace_buffer(void)
 {
     flush_trace_file(true);
+    compressed_simple_trace_buffer_cleanup();
 }
 
 /* Helper function to create a thread with signals blocked.  Use glib's
@@ -409,6 +569,11 @@ static GThread *trace_thread_create(GThreadFunc fn)
 
 bool st_init(void)
 {
+    // START: Kaifeng Xu
+    // Initialize compressed_trace_buffer
+    compressed_trace_buffer = malloc(sizeof(CompressedTraceBuffer));
+    // END: Kaifeng Xu
+
     GThread *thread;
 
     trace_pid = getpid();
@@ -421,4 +586,23 @@ bool st_init(void)
 
     atexit(st_flush_trace_buffer);
     return true;
+}
+
+void compressed_simple_trace_buffer_cleanup(void)
+{
+    if (compressed_trace_buffer->is_compressed) {
+        /* Flush compressed log buffers */
+        z_stream *gz_stream = &(compressed_trace_buffer->gz_stream);
+        unsigned char *out = compressed_trace_buffer->out;
+        do {
+            int have;
+            gz_stream->avail_out = CHUNK;
+            gz_stream->next_out = out;
+            CALL_ZLIB (deflate (gz_stream, Z_FINISH));
+            have = CHUNK - gz_stream->avail_out;
+            fwrite (out, sizeof (char), have, trace_fp);
+        } while (gz_stream->avail_out == 0);
+        (void)deflateEnd(&(compressed_trace_buffer->gz_stream));
+    }
+    free(compressed_trace_buffer);
 }

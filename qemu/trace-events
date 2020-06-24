@@ -109,7 +109,11 @@ qmp_job_dismiss(void *job) "job %p"
 
 
 ### Guest events, keep at bottom
-
+guest_trace_mem_access_itlb(uint64_t icount, uint64_t vaddr, uint64_t paddr, uint8_t seg_states, uint64_t cr3, uint8_t br_type, uint64_t target_vaddr) ",I,icount,%"PRIu64",vaddr,%016"PRIx64",paddr,%016"PRIx64",seg_states,%d,cr3,%016"PRIx64",br_type,%d,target_vaddr,%016"PRIx64""
+guest_trace_mem_access_tlb(uint64_t icount, uint64_t vaddr, uint64_t paddr, uint8_t load_store, uint8_t length, uint8_t seg_states, uint64_t cr3) ",D,icount,%"PRIu64",vaddr,%016"PRIx64",paddr,%016"PRIx64",load_store,%d,length,%d,seg_states,%d,cr3,%016"PRIx64""
+guest_trace_nop(uint8_t nop_byte0, uint8_t nop_byte1, uint8_t nop_byte2) "N,%d,%d,%d"
+guest_mem_access_notlb(uint64_t vaddr) ",I2,vaddr=0x%016"PRIx64""
+set_tlb(uint64_t vaddr, uint64_t paddr) ",I3,vaddr,0x%016"PRIx64",paddr,0x%016"PRIx64""
 
 ## vCPU
 

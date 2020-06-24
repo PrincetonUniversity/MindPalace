@@ -48,6 +48,10 @@
 #endif
 #include "trace/mem.h"
 
+// Kaifeng Xu
+#include "qemu/log.h"
+#include "trace-root.h"
+
 /* Uninstall and Reset handlers */
 
 void qemu_plugin_uninstall(qemu_plugin_id_t id, qemu_plugin_simple_cb_t cb)
@@ -220,6 +224,24 @@ char *qemu_plugin_insn_disas(const struct qemu_plugin_insn *insn)
     return plugin_disas(cpu, insn->vaddr, insn->data->len);
 }
 
+// Added by Kaifeng Xu
+inline uint64_t qemu_plugin_insn_paddr(const struct qemu_plugin_insn *insn)
+{
+    return insn->paddr;
+}
+
+inline int qemu_plugin_insn_is_br_jmp(const struct qemu_plugin_insn *insn)
+{
+    return insn->is_br_jmp;
+}
+
+// Get branch/jump target virtual address
+inline uint64_t qemu_plugin_insn_target_vaddr(const struct qemu_plugin_insn *insn)
+{
+    return insn->target_vaddr;
+}
+// End of addtion from Kaifeng Xu
+
 /*
  * The memory queries allow the plugin to query information about a
  * memory access.
@@ -259,7 +281,7 @@ struct qemu_plugin_hwaddr *qemu_plugin_get_hwaddr(qemu_plugin_meminfo_t info,
     unsigned int mmu_idx = info >> TRACE_MEM_MMU_SHIFT;
     hwaddr_info.is_store = info & TRACE_MEM_ST;
 
-    if (!tlb_plugin_lookup(cpu, vaddr, mmu_idx,
+    if (!tlb_plugin_lookup(cpu, vaddr, mmu_idx, info,
                            info & TRACE_MEM_ST, &hwaddr_info)) {
         error_report("invalid use of qemu_plugin_get_hwaddr");
         return NULL;
@@ -274,6 +296,27 @@ struct qemu_plugin_hwaddr *qemu_plugin_get_hwaddr(qemu_plugin_meminfo_t info,
     return NULL;
 }
 #endif
+
+/* Added by Kaifeng Xu, only for plugin tracing */
+void qemu_plugin_get_cpuinfo(uint64_t vaddr, uint64_t paddr, int is_br_jmp, uint64_t target_vaddr, uint64_t icount)
+{	
+    CPUState *cpu = current_cpu;
+    CPUArchState *env = cpu->env_ptr;
+    trace_guest_trace_mem_access_itlb(icount,
+                                      vaddr,
+                                      paddr,
+                                      (env->segs[1]).selector & 0x3,
+                                      env->cr[3],
+                                      is_br_jmp,
+                                      target_vaddr);
+    return;
+}
+
+void qemu_plugin_nop(uint8_t *nop_data)
+{
+    trace_guest_trace_nop(nop_data[0], nop_data[1], nop_data[2]);
+}
+/* End Kaifeng Xu*/
 
 bool qemu_plugin_hwaddr_is_io(const struct qemu_plugin_hwaddr *haddr)
 {
@@ -339,4 +382,9 @@ int qemu_plugin_n_max_vcpus(void)
 void qemu_plugin_outs(const char *string)
 {
     qemu_log_mask(CPU_LOG_PLUGIN, "%s", string);
+}
+
+// Kaifeng
+void qemu_log_plugin(const char *string){
+    qemu_log("%s", string);
 }

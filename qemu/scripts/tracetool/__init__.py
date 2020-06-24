@@ -236,7 +236,7 @@ class Event(object):
         self.event_trans = event_trans
         self.event_exec = event_exec
 
-        if len(args) > 10:
+        if len(args) > 20:
             raise ValueError("Event '%s' has more than maximum permitted "
                              "argument count" % name)
 

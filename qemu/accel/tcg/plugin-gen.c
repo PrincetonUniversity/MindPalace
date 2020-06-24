@@ -868,7 +868,7 @@ bool plugin_gen_tb_start(CPUState *cpu, const TranslationBlock *tb)
         QSIMPLEQ_INIT(&tcg_ctx->plugin_ops);
         ptb->vaddr = tb->pc;
         ptb->vaddr2 = -1;
-        get_page_addr_code_hostp(cpu->env_ptr, tb->pc, &ptb->haddr1);
+        get_page_addr_code_hostp(cpu->env_ptr, tb->pc, &ptb->haddr1, &ptb->paddr1);
         ptb->haddr2 = NULL;
 
         plugin_gen_empty_callback(PLUGIN_GEN_FROM_TB);
@@ -886,6 +886,11 @@ void plugin_gen_insn_start(CPUState *cpu, const DisasContextBase *db)
     pinsn->vaddr = db->pc_next;
     plugin_gen_empty_callback(PLUGIN_GEN_FROM_INSN);
 
+    // Added by Kaifeng Xu
+    // Initialize is_br_jmp
+    pinsn->is_br_jmp = 0;
+    pinsn->target_vaddr = 0;
+
     /*
      * Detect page crossing to get the new host address.
      * Note that we skip this when haddr1 == NULL, e.g. when we're
@@ -895,17 +900,19 @@ void plugin_gen_insn_start(CPUState *cpu, const DisasContextBase *db)
         unlikely((db->pc_next & TARGET_PAGE_MASK) !=
                  (db->pc_first & TARGET_PAGE_MASK))) {
         get_page_addr_code_hostp(cpu->env_ptr, db->pc_next,
-                                 &ptb->haddr2);
+                                 &ptb->haddr2, &ptb->paddr2);
         ptb->vaddr2 = db->pc_next;
     }
     if (likely(ptb->vaddr2 == -1)) {
         pinsn->haddr = ptb->haddr1 + pinsn->vaddr - ptb->vaddr;
+        pinsn->paddr = ptb->paddr1 + pinsn->vaddr - ptb->vaddr;
     } else {
         pinsn->haddr = ptb->haddr2 + pinsn->vaddr - ptb->vaddr2;
+        pinsn->paddr = ptb->paddr2 + pinsn->vaddr - ptb->vaddr2;
     }
 }
 
-void plugin_gen_insn_end(void)
+void plugin_gen_insn_end(CPUState *cpu, const DisasContextBase *db)
 {
     plugin_gen_empty_callback(PLUGIN_GEN_AFTER_INSN);
 }

@@ -19,6 +19,7 @@ struct qemu_plugin_hwaddr {
         } io;
         struct {
             uint64_t hostaddr;
+	        uint64_t paddr;
         } ram;
     } v;
 };
@@ -34,7 +35,7 @@ struct qemu_plugin_hwaddr {
  * It would only fail if not called from an instrumented memory access
  * which would be an abuse of the API.
  */
-bool tlb_plugin_lookup(CPUState *cpu, target_ulong addr, int mmu_idx,
+bool tlb_plugin_lookup(CPUState *cpu, target_ulong addr, int mmu_idx, qemu_plugin_meminfo_t info,
                        bool is_store, struct qemu_plugin_hwaddr *data);
 
 #endif /* _PLUGIN_MEMORY_H_ */

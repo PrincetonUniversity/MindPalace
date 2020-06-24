@@ -585,7 +585,7 @@ static inline tb_page_addr_t get_page_addr_code(CPUArchState *env,
  */
 static inline tb_page_addr_t get_page_addr_code_hostp(CPUArchState *env,
                                                       target_ulong addr,
-                                                      void **hostp)
+                                                      void **hostp, uint64_t *paddr)
 {
     if (hostp) {
         *hostp = g2h(addr);
@@ -624,7 +624,7 @@ tb_page_addr_t get_page_addr_code(CPUArchState *env, target_ulong addr);
  * Note: this function can trigger an exception.
  */
 tb_page_addr_t get_page_addr_code_hostp(CPUArchState *env, target_ulong addr,
-                                        void **hostp);
+                                        void **hostp, uint64_t *paddr);
 
 void tlb_reset_dirty(CPUState *cpu, ram_addr_t start1, ram_addr_t length);
 void tlb_set_dirty(CPUState *cpu, target_ulong vaddr);

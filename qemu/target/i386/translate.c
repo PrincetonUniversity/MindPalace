@@ -446,6 +446,13 @@ static inline void gen_jmp_im(DisasContext *s, target_ulong pc)
 {
     tcg_gen_movi_tl(s->tmp0, pc);
     gen_op_jmp_v(s->tmp0);
+    // Added by Kaifeng, other types of changing control
+    if (tcg_ctx->plugin_insn != NULL) {
+        if ((tcg_ctx->plugin_insn)->is_br_jmp == 0) {
+            (tcg_ctx->plugin_insn)->is_br_jmp = 7;
+            // (tcg_ctx->plugin_insn)->target_vaddr = pc;
+        }
+    }
 }
 
 /* Compute SEG:REG into A0.  SEG is selected from the override segment
@@ -2603,6 +2610,11 @@ do_gen_eob_worker(DisasContext *s, bool inhibit, bool recheck_tf, bool jr)
         tcg_gen_exit_tb(NULL, 0);
     }
     s->base.is_jmp = DISAS_NORETURN;
+    // Added by Kaifeng, other types of changing control
+    if (tcg_ctx->plugin_insn != NULL) {
+        if ((tcg_ctx->plugin_insn)->is_br_jmp == 0)
+            (tcg_ctx->plugin_insn)->is_br_jmp = 7;
+    }
 }
 
 static inline void
@@ -5067,11 +5079,17 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_op_jmp_v(s->T0);
             gen_bnd_jmp(s);
             gen_jr(s, s->T0);
+            // Added by Kaifeng, indirect call 
+            if (tcg_ctx->plugin_insn != NULL)
+                (tcg_ctx->plugin_insn)->is_br_jmp = 5;
             break;
         case 3: /* lcall Ev */
             gen_op_ld_v(s, ot, s->T1, s->A0);
             gen_add_A0_im(s, 1 << ot);
             gen_op_ld_v(s, MO_16, s->T0, s->A0);
+            // Added by Kaifeng, indirect call 
+            if (tcg_ctx->plugin_insn != NULL)
+                (tcg_ctx->plugin_insn)->is_br_jmp = 5;
         do_lcall:
             if (s->pe && !s->vm86) {
                 tcg_gen_trunc_tl_i32(s->tmp2_i32, s->T0);
@@ -5094,11 +5112,17 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_op_jmp_v(s->T0);
             gen_bnd_jmp(s);
             gen_jr(s, s->T0);
+            // Added by Kaifeng, indirect jump 
+            if (tcg_ctx->plugin_insn != NULL)
+                (tcg_ctx->plugin_insn)->is_br_jmp = 3;
             break;
         case 5: /* ljmp Ev */
             gen_op_ld_v(s, ot, s->T1, s->A0);
             gen_add_A0_im(s, 1 << ot);
             gen_op_ld_v(s, MO_16, s->T0, s->A0);
+            // Added by Kaifeng, indirect jump 
+            if (tcg_ctx->plugin_insn != NULL)
+                (tcg_ctx->plugin_insn)->is_br_jmp = 3;
         do_ljmp:
             if (s->pe && !s->vm86) {
                 tcg_gen_trunc_tl_i32(s->tmp2_i32, s->T0);
@@ -6513,6 +6537,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         gen_op_jmp_v(s->T0);
         gen_bnd_jmp(s);
         gen_jr(s, s->T0);
+        // Added by Kaifeng, return
+        if (tcg_ctx->plugin_insn != NULL)
+            (tcg_ctx->plugin_insn)->is_br_jmp = 6;
         break;
     case 0xc3: /* ret */
         ot = gen_pop_T0(s);
@@ -6521,6 +6548,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         gen_op_jmp_v(s->T0);
         gen_bnd_jmp(s);
         gen_jr(s, s->T0);
+        // Added by Kaifeng, return
+        if (tcg_ctx->plugin_insn != NULL)
+            (tcg_ctx->plugin_insn)->is_br_jmp = 6;
         break;
     case 0xca: /* lret im */
         val = x86_ldsw_code(env, s);
@@ -6545,6 +6575,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_stack_update(s, val + (2 << dflag));
         }
         gen_eob(s);
+        // Added by Kaifeng, return 
+        if (tcg_ctx->plugin_insn != NULL)
+            (tcg_ctx->plugin_insn)->is_br_jmp = 6;
         break;
     case 0xcb: /* lret */
         val = 0;
@@ -6587,6 +6620,11 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_push_v(s, s->T0);
             gen_bnd_jmp(s);
             gen_jmp(s, tval);
+            // Added by Kaifeng, direct call 
+            if (tcg_ctx->plugin_insn != NULL) {
+                (tcg_ctx->plugin_insn)->is_br_jmp = 4;
+                (tcg_ctx->plugin_insn)->target_vaddr = tval;
+            }
         }
         break;
     case 0x9a: /* lcall im */
@@ -6601,6 +6639,11 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
 
             tcg_gen_movi_tl(s->T0, selector);
             tcg_gen_movi_tl(s->T1, offset);
+            // Added by Kaifeng, direct call 
+            if (tcg_ctx->plugin_insn != NULL) {
+                (tcg_ctx->plugin_insn)->is_br_jmp = 4;
+                (tcg_ctx->plugin_insn)->target_vaddr = (((uint64_t)selector) << 32) + (uint64_t)offset;
+            }
         }
         goto do_lcall;
     case 0xe9: /* jmp im */
@@ -6617,6 +6660,11 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         }
         gen_bnd_jmp(s);
         gen_jmp(s, tval);
+        // Added by Kaifeng, direct jump
+        if (tcg_ctx->plugin_insn != NULL) {
+            (tcg_ctx->plugin_insn)->is_br_jmp = 2;
+            (tcg_ctx->plugin_insn)->target_vaddr = tval;
+        }
         break;
     case 0xea: /* ljmp im */
         {
@@ -6630,6 +6678,11 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
 
             tcg_gen_movi_tl(s->T0, selector);
             tcg_gen_movi_tl(s->T1, offset);
+            // Added by Kaifeng, direct jump
+            if (tcg_ctx->plugin_insn != NULL) {
+                (tcg_ctx->plugin_insn)->is_br_jmp = 2;
+                (tcg_ctx->plugin_insn)->target_vaddr = (((uint64_t)selector) << 32) + (uint64_t)offset;
+            }
         }
         goto do_ljmp;
     case 0xeb: /* jmp Jb */
@@ -6639,6 +6692,11 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             tval &= 0xffff;
         }
         gen_jmp(s, tval);
+        // Added by Kaifeng, direct jump
+        if (tcg_ctx->plugin_insn != NULL) {
+            (tcg_ctx->plugin_insn)->is_br_jmp = 2;
+            (tcg_ctx->plugin_insn)->target_vaddr = tval;
+        }
         break;
     case 0x70 ... 0x7f: /* jcc Jb */
         tval = (int8_t)insn_get(env, s, MO_8);
@@ -6657,6 +6715,11 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         }
         gen_bnd_jmp(s);
         gen_jcc(s, b, tval, next_eip);
+        // Added by Kaifeng, branch
+        if (tcg_ctx->plugin_insn != NULL) {
+            (tcg_ctx->plugin_insn)->is_br_jmp = 1;
+            (tcg_ctx->plugin_insn)->target_vaddr = tval;
+        }
         break;
 
     case 0x190 ... 0x19f: /* setcc Gv */
@@ -7178,6 +7241,12 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_jmp_im(s, tval);
             gen_set_label(l2);
             gen_eob(s);
+
+            // Added by Kaifeng, branch
+            if (tcg_ctx->plugin_insn != NULL) {
+                (tcg_ctx->plugin_insn)->is_br_jmp = 1;
+                (tcg_ctx->plugin_insn)->target_vaddr = tval;
+            }
         }
         break;
     case 0x130: /* wrmsr */

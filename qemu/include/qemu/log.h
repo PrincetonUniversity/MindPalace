@@ -1,13 +1,47 @@
 #ifndef QEMU_LOG_H
 #define QEMU_LOG_H
 
+// START: Georgios
+#include <zlib.h>
+#define CHUNK 0x4000
+// END: Georgios
+
 /* A small part of this API is split into its own header */
 #include "qemu/log-for-trace.h"
 #include "qemu/rcu.h"
 
+// START: Georgios
+/* The following macro calls a zlib routine and checks the return
+   value. If the return value ("status") is not OK, it prints an error
+   message and exits the program. Zlib's error statuses are all less
+   than zero. */
+#define CALL_ZLIB(x) {                                                  \
+            int status;                                                 \
+            status = x;                                                 \
+            if (status < 0) {                                           \
+                fprintf (stderr,                                        \
+                         "%s:%d: %s returned a bad status of %d.\n",    \
+                         __FILE__, __LINE__, #x, status);               \
+                exit (EXIT_FAILURE);                                    \
+            }                                                           \
+        }
+
+/* These are parameters to deflateInit2. See
+   http://zlib.net/manual.html for the exact meanings. */
+#define windowBits 15
+#define GZIP_ENCODING 16
+
+// END: Georgios
+
 typedef struct QemuLogFile {
     struct rcu_head rcu;
     FILE *fd;
+    // START: Georgios
+    z_stream gz_stream;
+    int is_compressed;
+    unsigned char out[CHUNK];
+    char message[CHUNK];
+    // END: Georgios
 } QemuLogFile;
 
 /* Private global variable, don't use */
@@ -163,5 +197,10 @@ void qemu_print_log_usage(FILE *f);
 void qemu_log_flush(void);
 /* Close the log file */
 void qemu_log_close(void);
+
+// START: Georgios
+/* Clean up/flush qemu log buffers on exit */
+void qemu_log_cleanup(void);
+// END: Georgios
 
 #endif

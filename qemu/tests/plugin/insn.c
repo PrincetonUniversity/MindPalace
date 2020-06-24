@@ -14,6 +14,9 @@
 
 #include <qemu-plugin.h>
 
+// Kaifeng Xu
+#include "hw/pqii.h"
+
 QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
 
 static uint64_t insn_count;
@@ -21,7 +24,7 @@ static bool do_inline;
 
 static void vcpu_insn_exec_before(unsigned int cpu_index, void *udata)
 {
-    insn_count++;
+    g_pqii_data.icount++;
 }
 
 static void vcpu_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
@@ -34,7 +37,7 @@ static void vcpu_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
 
         if (do_inline) {
             qemu_plugin_register_vcpu_insn_exec_inline(
-                insn, QEMU_PLUGIN_INLINE_ADD_U64, &insn_count, 1);
+                insn, QEMU_PLUGIN_INLINE_ADD_U64, &g_pqii_data.icount, 1);
         } else {
             qemu_plugin_register_vcpu_insn_exec_cb(
                 insn, vcpu_insn_exec_before, QEMU_PLUGIN_CB_NO_REGS, NULL);

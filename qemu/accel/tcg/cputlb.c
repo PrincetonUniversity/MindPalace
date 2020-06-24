@@ -40,6 +40,10 @@
 #include "qemu/plugin-memory.h"
 #endif
 
+// Added by Kaifeng
+#include "hw/pqii.h"
+pqii_data_t g_pqii_data;
+
 /* DEBUG defines, enable DEBUG_TLB_LOG to log to the CPU_LOG_MMU target */
 /* #define DEBUG_TLB */
 /* #define DEBUG_TLB_LOG */
@@ -960,6 +964,7 @@ void tlb_set_page_with_attrs(CPUState *cpu, target_ulong vaddr,
 
     /* Now calculate the new entry */
     tn.addend = addend - vaddr_page;
+    tn.paddr = paddr_page;
     if (prot & PAGE_READ) {
         tn.addr_read = address;
         if (wp_flags & BP_MEM_READ) {
@@ -1175,7 +1180,7 @@ static bool victim_tlb_hit(CPUArchState *env, size_t mmu_idx, size_t index,
  * not executable.
  */
 tb_page_addr_t get_page_addr_code_hostp(CPUArchState *env, target_ulong addr,
-                                        void **hostp)
+                                        void **hostp, uint64_t *paddr)
 {
     uintptr_t mmu_idx = cpu_mmu_index(env, true);
     uintptr_t index = tlb_index(env, mmu_idx, addr);
@@ -1208,6 +1213,9 @@ tb_page_addr_t get_page_addr_code_hostp(CPUArchState *env, target_ulong addr,
     }
 
     p = (void *)((uintptr_t)addr + entry->addend);
+    if (paddr) {
+        *paddr = (addr & (~TARGET_PAGE_MASK)) + entry->paddr;
+    }
     if (hostp) {
         *hostp = p;
     }
@@ -1216,7 +1224,7 @@ tb_page_addr_t get_page_addr_code_hostp(CPUArchState *env, target_ulong addr,
 
 tb_page_addr_t get_page_addr_code(CPUArchState *env, target_ulong addr)
 {
-    return get_page_addr_code_hostp(env, addr, NULL);
+    return get_page_addr_code_hostp(env, addr, NULL, NULL);
 }
 
 static void notdirty_write(CPUState *cpu, vaddr mem_vaddr, unsigned size,
@@ -1385,7 +1393,7 @@ void *tlb_vaddr_to_host(CPUArchState *env, abi_ptr addr,
  * should have just filled the TLB.
  */
 
-bool tlb_plugin_lookup(CPUState *cpu, target_ulong addr, int mmu_idx,
+bool tlb_plugin_lookup(CPUState *cpu, target_ulong addr, int mmu_idx, qemu_plugin_meminfo_t info,
                        bool is_store, struct qemu_plugin_hwaddr *data)
 {
     CPUArchState *env = cpu->env_ptr;
@@ -1404,6 +1412,21 @@ bool tlb_plugin_lookup(CPUState *cpu, target_ulong addr, int mmu_idx,
         } else {
             data->is_io = false;
             data->v.ram.hostaddr = addr + tlbe->addend;
+            data->v.ram.paddr = (addr & (~TARGET_PAGE_MASK)) + tlbe->paddr;
+            // Add trace event here
+            if (g_pqii_data.status) {
+                int mem_size = 1 << (info & TRACE_MEM_SZ_SHIFT_MASK);
+                if (qemu_plugin_hwaddr_is_io(data)){
+                    mem_size = 0; // set a abnormal size of memory access
+                }
+                trace_guest_trace_mem_access_tlb(g_pqii_data.icount,
+                                                 addr,
+                                                 data->v.ram.paddr,
+                                                 is_store,
+                                                 mem_size,
+                                                 (env->segs[1]).selector & 0x3,
+                                                 env->cr[3]);
+            }
         }
         return true;
     }
@@ -1769,6 +1792,7 @@ static inline uint64_t cpu_load_helper(CPUArchState *env, abi_ptr addr,
     oi = make_memop_idx(op, mmu_idx);
     ret = full_load(env, addr, oi, retaddr);
 
+    trace_guest_mem_access_notlb(addr);
     qemu_plugin_vcpu_mem_cb(env_cpu(env), addr, meminfo);
 
     return ret;
@@ -2048,7 +2072,7 @@ store_helper(CPUArchState *env, target_ulong addr, uint64_t val,
         }
 
         haddr = (void *)((uintptr_t)addr + entry->addend);
-
+        
         /*
          * Keep these two store_memop separate to ensure that the compiler
          * is able to fold the entire function to a single instruction.
@@ -2190,6 +2214,7 @@ cpu_store_helper(CPUArchState *env, target_ulong addr, uint64_t val,
     oi = make_memop_idx(op, mmu_idx);
     store_helper(env, addr, val, oi, retaddr, op);
 
+    trace_guest_mem_access_notlb(addr);
     qemu_plugin_vcpu_mem_cb(env_cpu(env), addr, meminfo);
 }
 

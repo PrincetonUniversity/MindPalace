@@ -1,3 +1,64 @@
+QEMU Configuration for Tracing
+========
+
+.. code-block:: shell
+
+    mkdir build
+    cd build
+    ../configure --prefix=<path to alternative sysroot> --target-list=x86_64-softmmu,x86_64-linux-user --disable-kvm --disable-vnc --enable-gtk --enable-plugins
+    make
+    make install
+    cd ..
+
+Then compile the plugins 
+
+.. code-block:: shell
+
+    cd build/tests/plugin/
+    make
+
+Create a file named 'events': (Before launching the QEMU, we should create a file containing all the trace names we need.)
+
+.. code-block:: shell
+
+    guest_mem_access_tlb
+    guest_mem_access_itlb
+
+Command for running QEMU:
+
+.. code-block:: shell
+
+    LOG_FILE=<Path to Trace Output>/nokvm-`date +%Y-%m-%d_-_%H-%M`.gz
+    DISK=/scratch/kaifengx/qemu-img/my_new_image_20210425.qcow2
+    qemu-system-x86_64 \
+        -cpu qemu64,+pcid \
+        -smp 8 \
+        -m 8G \
+        -drive if=virtio,file=${DISK},cache=none \
+        -device pqii \
+        -trace events=`pwd`/events \
+        -net user,hostfwd=tcp::10022-:22 \
+        -net nic \
+        -display none \
+        -nographic \
+        -icount shift=0,align=off \
+        -plugin <Path to qemu-private>/build/tests/plugin/libtrace_test.so,arg=inline,arg=io \
+        -D ${LOG_FILE}
+
+
+Extra Settings for Using OpenWhisk in QEMU
+========
+
+.. code-block:: shell
+
+    export DOCKER_CLIENT_TIMEOUT=180
+    export COMPOSE_HTTP_TIMEOUT=180
+
+
+This increases docker container read timeout limit.
+
+Add delay time in the "deploy.yml"s.
+
 ===========
 QEMU README
 ===========

@@ -4514,4 +4514,9 @@ void qemu_cleanup(void)
     qemu_chr_cleanup();
     user_creatable_cleanup();
     /* TODO: unref root container, check all devices are ok */
+
+    // START: Georgios
+    // Make sure that the compressed log buffers are all flushed out
+    qemu_log_cleanup();
+    // END: Georgios
 }

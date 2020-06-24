@@ -1,4 +1,5 @@
-BUILD_DIR := $(CURDIR)/../..
+BUILD_DIR := $(CURDIR)/../../build
+SRC_PATH := $(CURDIR)/../..
 
 include $(BUILD_DIR)/config-host.mak
 include $(SRC_PATH)/rules.mak
@@ -14,6 +15,7 @@ NAMES += hotblocks
 NAMES += howvec
 NAMES += hotpages
 NAMES += lockstep
+NAMES += cache_test
 
 SONAMES := $(addsuffix .so,$(addprefix lib,$(NAMES)))
 

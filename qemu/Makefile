@@ -619,7 +619,8 @@ endif
 qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx $(SRC_PATH)/scripts/hxtool
 	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -h < $< > $@,"GEN","$@")
 
-qemu-ga$(EXESUF): LIBS = $(LIBS_QGA)
+## Georgios: -lz is required for the compressed qemu_log output capability
+qemu-ga$(EXESUF): LIBS = $(LIBS_QGA) -lz
 qemu-ga$(EXESUF): QEMU_CFLAGS += -I qga/qapi-generated
 
 qemu-keymap$(EXESUF): LIBS += $(XKBCOMMON_LIBS)
