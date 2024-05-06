@@ -14,6 +14,10 @@
 
 using namespace std;
 
+// Added by Kaifeng Xu
+extern char bp_states_init_fname[256];
+// End Kaifeng Xu
+
 class CACHE;
 
 class CacheBus : public MemoryRequestProducer
@@ -28,6 +32,13 @@ public:
 class O3_CPU : public champsim::operable
 {
 public:
+  // Added by Kaifeng Xu
+  uint64_t kernel_insn = 0;
+  uint64_t kernel_data = 0;
+  uint64_t user_insn = 0;
+  uint64_t user_data = 0;
+  // End
+
   uint32_t cpu = 0;
 
   // instruction
@@ -124,6 +135,14 @@ public:
   void print_deadlock() override;
 
   int prefetch_code_line(uint64_t pf_v_addr);
+
+  // Added by Kaifeng Xu
+  void perform_bp(long insn_count, ooo_model_instr arch_instr, long *num_branch, long *mispredict);
+  void perform_bp_useronly(long insn_count, uint64_t pc, bool taken, long *num_branch, long *mispredict);
+  void bp_store_states(long insn_count);
+  void bp_load_states(long insn_count);
+  void print_detailed_misses();
+  // Kaifeng Xu
 
 #include "ooo_cpu_modules.inc"
 

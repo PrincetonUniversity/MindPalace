@@ -209,7 +209,12 @@ void O3_CPU::init_instruction(ooo_model_instr arch_instr)
     std::pair<uint64_t, uint8_t> btb_result = impl_btb_prediction(arch_instr.ip, arch_instr.branch_type);
     uint64_t predicted_branch_target = btb_result.first;
     uint8_t always_taken = btb_result.second;
+    // Changed by Kaifeng Xu
+    // uint8_t branch_prediction = impl_predict_branch(arch_instr.ip, predicted_branch_target, always_taken, arch_instr.branch_type);
+    uint64_t asid = arch_instr.asid[0] | (arch_instr.asid[1] << 8);
     uint8_t branch_prediction = impl_predict_branch(arch_instr.ip, predicted_branch_target, always_taken, arch_instr.branch_type);
+    // printf("asid: %d\n", asid);
+    // End: Kaifeng Xu
     if ((branch_prediction == 0) && (always_taken == 0)) {
       predicted_branch_target = 0;
     }
@@ -217,7 +222,13 @@ void O3_CPU::init_instruction(ooo_model_instr arch_instr)
     // call code prefetcher every time the branch predictor is used
     impl_prefetcher_branch_operate(arch_instr.ip, arch_instr.branch_type, predicted_branch_target);
 
-    if (predicted_branch_target != arch_instr.branch_target) {
+    // Changed by Kaifeng Xu
+    // if (predicted_branch_target != arch_instr.branch_target) {
+    if (branch_prediction != arch_instr.branch_taken) {
+      //   arch_instr.is_btb_miss = 0;
+      // else
+      //   arch_instr.is_btb_miss = 1;
+    // End of Change
       branch_mispredictions++;
       total_rob_occupancy_at_branch_mispredict += ROB.occupancy();
       branch_type_misses[arch_instr.branch_type]++;
@@ -424,7 +435,12 @@ void O3_CPU::decode_instruction()
         // again at execute
         db_entry.branch_mispredicted = 0;
         // pay misprediction penalty
-        fetch_resume_cycle = current_cycle + BRANCH_MISPREDICT_PENALTY;
+        // Changed by Kaifeng Xu, assume btb miss penalty is 0 cycles
+        // if (db_entry.is_btb_miss == 1)
+        //   fetch_resume_cycle = current_cycle + 0;
+        // else
+          fetch_resume_cycle = current_cycle + BRANCH_MISPREDICT_PENALTY;
+        // End of Change
       }
     }
 
@@ -937,7 +953,13 @@ void O3_CPU::do_complete_execution(champsim::circular_buffer<ooo_model_instr>::i
   }
 
   if (rob_it->branch_mispredicted)
-    fetch_resume_cycle = current_cycle + BRANCH_MISPREDICT_PENALTY;
+    // Changed by Kaifeng Xu
+    // if (rob_it->is_btb_miss == 1){
+    //   fetch_resume_cycle = current_cycle + 0;
+    // } else {
+      fetch_resume_cycle = current_cycle + BRANCH_MISPREDICT_PENALTY;
+    // }
+    // end of change
 }
 
 void O3_CPU::complete_inflight_instruction()
@@ -1119,6 +1141,17 @@ void O3_CPU::retire_rob()
     // release ROB entry
     DP(if (warmup_complete[cpu]) { cout << "[ROB] " << __func__ << " instr_id: " << ROB.front().instr_id << " is retired" << endl; });
 
+    // Added by Kaifeng Xu, count kernels
+    if (ROB.front().is_kernel) {
+      kernel_insn++;
+      if (ROB.front().is_memory)
+        kernel_data++;
+    } else {
+      user_insn++;
+      if (ROB.front().is_memory)
+        user_data++;
+    }
+    // End Kaifeng Xu
     ROB.pop_front();
     completed_executions--;
     num_retired++;

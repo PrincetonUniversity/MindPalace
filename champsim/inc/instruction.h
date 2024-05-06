@@ -9,6 +9,7 @@
 
 #include "circular_buffer.hpp"
 #include "trace_instruction.h"
+#include "qemutrace.h"
 
 // special registers that help us identify branches
 #define REG_STACK_POINTER 6
@@ -30,6 +31,11 @@ struct ooo_model_instr {
 
   bool is_branch = 0, is_memory = 0, branch_taken = 0, branch_mispredicted = 0, source_added[NUM_INSTR_SOURCES] = {},
        destination_added[NUM_INSTR_DESTINATIONS_SPARC] = {};
+
+  // Added by Kaifeng Xu
+  bool is_btb_miss = 0;
+  bool is_kernel = true;
+  // End
 
   uint8_t asid[2] = {std::numeric_limits<uint8_t>::max(), std::numeric_limits<uint8_t>::max()};
 
@@ -84,6 +90,39 @@ struct ooo_model_instr {
 
     std::copy(std::begin(instr.asid), std::begin(instr.asid), std::begin(this->asid));
   }
+
+  ooo_model_instr(uint8_t cpu, QEMU_trace_insn instr)
+  {
+    this->ip = instr.vaddr;
+    this->is_branch = (instr.br_type > 0); // not decided here
+    this->branch_type = instr.br_type;
+    this->branch_target = instr.target_vaddr;
+    // this->branch_taken = ?; not decided here
+
+    this->asid[0] = (instr.cr3 >> 12) & 0xff;
+    this->asid[1] = (instr.cr3 >> 20) & 0xff;
+    this->is_kernel = (instr.seg_states < 3);
+  }
+
+  ooo_model_instr(uint8_t cpu, QEMU_trace_insn instr, QEMU_trace_data trace_data)
+  {
+    this->ip = instr.vaddr;
+    this->is_branch = (instr.br_type > 0); // not decided here
+    this->branch_type = instr.br_type;
+    this->branch_target = instr.target_vaddr;
+    
+    // 0 load, 1 store
+    if (trace_data.load_store) {
+      this->destination_memory[0] = trace_data.vaddr;
+    } else {
+      this->source_memory[0] = trace_data.vaddr;
+    }
+
+    this->asid[0] = (instr.cr3 >> 12) & 0xff;
+    this->asid[1] = (instr.cr3 >> 20) & 0xff;
+    this->is_kernel = (instr.seg_states < 3);
+  }
+
 };
 
 #endif

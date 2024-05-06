@@ -35,6 +35,10 @@ extern std::array<champsim::operable*, NUM_OPERABLES> operables;
 
 std::vector<tracereader*> traces;
 
+// Added by Kaifeng Xu
+char bp_states_init_fname[256];
+// End Kaifeng Xu
+
 uint64_t champsim::deprecated_clock_cycle::operator[](std::size_t cpu_idx)
 {
   static bool deprecate_printed = false;
@@ -169,6 +173,13 @@ void print_branch_stats()
     (100.0*ooo_cpu[i]->total_branch_types[7])/(ooo_cpu[i]->num_retired -
     ooo_cpu[i]->begin_sim_instr) << "%" << endl << endl;
     */
+    cout << "Branch type Misses" << endl;
+    cout << "BRANCH_DIRECT_JUMP MISSES: " << ooo_cpu[i]->branch_type_misses[1] << endl;
+    cout << "BRANCH_INDIRECT MISSES: " << ooo_cpu[i]->branch_type_misses[2] << endl;
+    cout << "BRANCH_CONDITIONAL MISSES: " << ooo_cpu[i]->branch_type_misses[3] << endl;
+    cout << "BRANCH_DIRECT_CALL MISSES: " << ooo_cpu[i]->branch_type_misses[4] << endl;
+    cout << "BRANCH_INDIRECT_CALL MISSES: " << ooo_cpu[i]->branch_type_misses[5] << endl;
+    cout << "BRANCH_RETURN MISSES: " << ooo_cpu[i]->branch_type_misses[6] << endl;
 
     cout << "Branch type MPKI" << endl;
     cout << "BRANCH_DIRECT_JUMP: " << (1000.0 * ooo_cpu[i]->branch_type_misses[1] / (ooo_cpu[i]->num_retired - ooo_cpu[i]->begin_sim_instr)) << endl;
@@ -323,11 +334,12 @@ int main(int argc, char** argv)
                                          {"simulation_instructions", required_argument, 0, 'i'},
                                          {"hide_heartbeat", no_argument, 0, 'h'},
                                          {"cloudsuite", no_argument, 0, 'c'},
+                                         {"bp_states", required_argument, 0, 's'},
                                          {"traces", no_argument, &traces_encountered, 1},
                                          {0, 0, 0, 0}};
 
   int c;
-  while ((c = getopt_long_only(argc, argv, "w:i:hc", long_options, NULL)) != -1 && !traces_encountered) {
+  while ((c = getopt_long_only(argc, argv, "w:i:hcs:", long_options, NULL)) != -1 && !traces_encountered) {
     switch (c) {
     case 'w':
       warmup_instructions = atol(optarg);
@@ -341,6 +353,10 @@ int main(int argc, char** argv)
     case 'c':
       knob_cloudsuite = 1;
       MAX_INSTR_DESTINATIONS = NUM_INSTR_DESTINATIONS_SPARC;
+      break;
+    case 's':
+      strcpy(bp_states_init_fname, optarg);
+      printf("BP: %s\n", bp_states_init_fname);
       break;
     case 0:
       break;
@@ -395,6 +411,10 @@ int main(int argc, char** argv)
   }
 
   // simulation entry point
+  // Start Kaifeng Xu
+  // Load states
+  // ooo_cpu[0]->bp_load_states(10000000);
+  // End Kaifeng Xu
   while (std::any_of(std::begin(simulation_complete), std::end(simulation_complete), std::logical_not<uint8_t>())) {
 
     uint64_t elapsed_second = (uint64_t)(time(NULL) - start_time), elapsed_minute = elapsed_second / 60, elapsed_hour = elapsed_minute / 60;
@@ -440,6 +460,23 @@ int main(int argc, char** argv)
 
         ooo_cpu[i]->last_sim_instr = ooo_cpu[i]->num_retired;
         ooo_cpu[i]->last_sim_cycle = ooo_cpu[i]->current_cycle;
+
+        // Added by Kaifeng Xu, print middle stats
+        for (auto it = caches.rbegin(); it != caches.rend(); ++it)
+          record_roi_stats(i, *it);
+        for (uint32_t i = 0; i < NUM_CPUS; i++) {
+          cout << endl << "CPU " << i << " Kernel: " << "K-I " <<  ooo_cpu[i]->kernel_insn << " K-D " << ooo_cpu[i]->kernel_data << " U-I " << ooo_cpu[i]->user_insn << " U-D " << ooo_cpu[i]->user_data;
+          cout << endl << "CPU " << i << " cumulative IPC: " << ((float)ooo_cpu[i]->finish_sim_instr / ooo_cpu[i]->finish_sim_cycle);
+          cout << " instructions: " << ooo_cpu[i]->finish_sim_instr << " cycles: " << ooo_cpu[i]->finish_sim_cycle << endl;
+          for (auto it = caches.rbegin(); it != caches.rend(); ++it)
+            print_roi_stats(i, *it);
+        }
+        print_branch_stats();
+        // Store states
+        // if (ooo_cpu[i]->num_retired < 10000100) {
+        //     ooo_cpu[i]->bp_store_states(10000000);
+        // }
+        // End Kaifeng Xu
       }
 
       // check for warmup
