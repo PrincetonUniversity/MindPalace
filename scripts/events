@@ -1,0 +1,3 @@
+guest_trace_mem_access_tlb
+guest_trace_mem_access_itlb
+guest_trace_nop

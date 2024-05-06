@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2019, Alex Bennée <alex.bennee@linaro.org>
+ * Copyright (C) 2024, Kaifeng Xu <kaifengx@princeton.edu>
  *
- * Hot Pages - show which pages saw the most memory accesses.
+ * plugin for MindPalace
  *
  * License: GNU GPL, version 2 or later.
  *   See the COPYING file in the top-level directory.
