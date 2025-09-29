@@ -45,7 +45,10 @@ Launch QEMU full system emulation.
 ```
 bash scripts/launch_qemu.sh
 ```
-You might want to type <code>enter</code> again to see when it finishes loading the snapshot. 
+You can deploy FunctionBench by downloading them from https://github.com/ddps-lab/serverless-faas-workbench.git. And deploy the functions using wsk tool from OpenWhisk. For example:
+```
+./bin/wsk action create chameleon --docker andersonandrei/python3action:chameleon ~/serverless-faas-workbench/openwhisk/cpu-memory/chameleon/function.py -m 512 -t 300000 -i
+```
 Invoke functions in QEMU to generate traces by OpenWhisk operations. Functionbench is already set up, here is an example:
 ```
 ./bin/wsk action invoke chameleon -p num_of_rows 20 -p num_of_cols 20 -p metadata deadbeef  --result -iv
