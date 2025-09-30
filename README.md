@@ -27,7 +27,7 @@ make
 ```
 
 ### Download VM for MindPalace
-We provide a VM image based on Debian 12 with OpenWhisk installed. https://drive.google.com/file/d/11D3t-0LhTVppDN5ui2dKeVuo8Da0iQ31/view?usp=sharing
+We provide a VM image based on Debian 12 with OpenWhisk installed. https://www.princeton.edu/~cloud/mindpalace/mindpalace-vm.tar.gz 
 You can start a simple Openwhisk server by running the following codes:
 ```
 java -jar bin/openwhisk-standalone.jar --no-browser --no-ui
