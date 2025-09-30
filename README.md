@@ -1,5 +1,5 @@
   <h1 align="center"> MindPalace </h1>
-    <p> MindPalace is a full-system framework that developed to study the architectural behavior of large middleware serverless systems. MindPalace contains a simulation infrastructure and a pre-configured virtual machine (VM) to assist FaaS architecture research. The simulation tool leverages QEMU and ChampSim. It extends QEMU to generate detailed instruction and data access traces with corresponding processor states. These traces are passed to a modified ChampSim to simulate the desired architecture. The VM contains a Debian 12 image with preinstalled OpenWhisk. <p>
+    <p> MindPalace is a full-system framework that developed to study the architectural behavior of large middleware serverless systems. MindPalace contains a simulation infrastructure and a pre-configured virtual machine (VM) to assist FaaS architecture research. The simulation tool leverages QEMU and ChampSim. It extends QEMU to generate detailed instruction and data access traces with corresponding processor states. These traces are passed to a modified ChampSim to simulate the desired architecture. The VM is based on Debian 12 image with preinstalled OpenWhisk. <p>
 </p>
 
 ### Contacts
@@ -27,7 +27,7 @@ make
 ```
 
 ### Download VM for MindPalace
-We provide a Debian 12 image with OpenWhisk. https://drive.google.com/file/d/11D3t-0LhTVppDN5ui2dKeVuo8Da0iQ31/view?usp=sharing
+We provide a VM image based on Debian 12 with OpenWhisk installed. https://drive.google.com/file/d/11D3t-0LhTVppDN5ui2dKeVuo8Da0iQ31/view?usp=sharing
 You can start a simple Openwhisk server by running the following codes:
 ```
 java -jar bin/openwhisk-standalone.jar --no-browser --no-ui
