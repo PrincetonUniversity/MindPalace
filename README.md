@@ -1,5 +1,5 @@
   <h1 align="center"> MindPalace </h1>
-    <p> MindPalace is a full-system framework that developed to study the architectural behavior of large middleware serverless systems. MindPalace contains a simulation infrastructure and a pre-configured virtual machine (VM) to assist FaaS architecture research. The simulation tool leverages QEMU and ChampSim. It extends QEMU to generate detailed instruction and data access traces with corresponding processor states. These traces are passed to a modified ChampSim to simulate the desired architecture. The VM contains a full Ubuntu image with preinstalled OpenWhisk, together with checkpoints for ready-to-run serverless applications. <p>
+    <p> MindPalace is a full-system framework that developed to study the architectural behavior of large middleware serverless systems. MindPalace contains a simulation infrastructure and a pre-configured virtual machine (VM) to assist FaaS architecture research. The simulation tool leverages QEMU and ChampSim. It extends QEMU to generate detailed instruction and data access traces with corresponding processor states. These traces are passed to a modified ChampSim to simulate the desired architecture. The VM contains a Debian 12 image with preinstalled OpenWhisk. <p>
 </p>
 
 ### Contacts
@@ -27,7 +27,7 @@ make
 ```
 
 ### Download VM for MindPalace
-Due to license concerns, we are not going to open-source Ubuntu image, instead we provide a lighter Debian version. https://drive.google.com/file/d/11D3t-0LhTVppDN5ui2dKeVuo8Da0iQ31/view?usp=sharing
+We provide a Debian 12 image with OpenWhisk. https://drive.google.com/file/d/11D3t-0LhTVppDN5ui2dKeVuo8Da0iQ31/view?usp=sharing
 
 
 ### Run QEMU to generate traces
