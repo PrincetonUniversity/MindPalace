@@ -28,6 +28,10 @@ make
 
 ### Download VM for MindPalace
 We provide a Debian 12 image with OpenWhisk. https://drive.google.com/file/d/11D3t-0LhTVppDN5ui2dKeVuo8Da0iQ31/view?usp=sharing
+You can start a simple Openwhisk server by running the following codes:
+```
+java -jar bin/openwhisk-standalone.jar --no-browser --no-ui
+```
 
 
 ### Run QEMU to generate traces
