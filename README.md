@@ -27,9 +27,8 @@ make
 ```
 
 ### Download VM for MindPalace
-```
 Due to license concerns, we are not going to open-source Ubuntu image, instead we provide a lighter Debian version. https://drive.google.com/file/d/11D3t-0LhTVppDN5ui2dKeVuo8Da0iQ31/view?usp=sharing
-```
+
 
 ### Run QEMU to generate traces
 First we need to add QEMU binary location "PATH/to/sysroot" to your .bashrc file. 
