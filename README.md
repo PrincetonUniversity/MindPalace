@@ -28,7 +28,7 @@ make
 
 ### Download VM for MindPalace
 ```
-Comming soon, or you want the VM image directly please contact us.
+Due to license concerns, we are not going to open-source Ubuntu image, instead we provide a lighter Debian version. https://drive.google.com/file/d/11D3t-0LhTVppDN5ui2dKeVuo8Da0iQ31/view?usp=sharing
 ```
 
 ### Run QEMU to generate traces

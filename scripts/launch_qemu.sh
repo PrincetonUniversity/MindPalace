@@ -6,11 +6,12 @@ qemu-system-x86_64 \
     -cpu qemu64,+pcid \
     -icount shift=0,align=off \
     -m 16G \
-    -drive if=virtio,file=${DISK},cache=none \
-    -loadvm finish_deploy_openwhisk_marker_chameleon \
+    -hda ${DISK} \
     -trace events=`pwd`/events,file=${SIMPLE_FILE} \
     -net user,hostfwd=tcp::10022-:22 \
     -net nic \
     -display none \
     -nographic 
+#    -loadvm openwhisk \
+#    -drive if=virtio,file=${DISK},cache=none \
 
